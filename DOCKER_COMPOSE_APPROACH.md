@@ -57,36 +57,12 @@ services:
 
     command: |
       bash -c '
-        echo "=== PR Verification: $${REPO_NAME} #$${PR_ID} ==="
-        echo "Project Type: $${PROJECT_TYPE}"
-        echo "Build Command: $${BUILD_COMMAND}"
-        echo ""
-
-        # Clone repository
-        git clone --depth=1 --branch "$${TARGET_BRANCH}" "$${REPO_URL}" /workspace
-        cd /workspace
-
-        # Fetch and merge PR
-        git fetch --depth=50 origin "$${TARGET_COMMIT}"
-        git fetch origin "pull/$${PR_ID}/head:pr-source"
-        git checkout "$${TARGET_COMMIT}"
-        git checkout -b mock-merge
-        git merge pr-source --no-commit --no-edit || echo "Merge conflicts detected"
-
-        # Run build
+        echo "=== Verifying $${REPO_NAME} #$${PR_ID} ==="
+        git clone --depth=1 --branch "$${TARGET_BRANCH}" "$${REPO_URL}" /workspace && cd /workspace
+        git fetch --depth=50 origin "$${TARGET_COMMIT}" && git fetch origin "pull/$${PR_ID}/head:pr-source"
+        git checkout "$${TARGET_COMMIT}" && git checkout -b mock-merge && git merge pr-source --no-commit --no-edit || true
         eval "$${BUILD_COMMAND}"
-        BUILD_EXIT_CODE=$$?
-
-        # Write result
-        mkdir -p /logs/verifier
-        if [ $$BUILD_EXIT_CODE -eq 0 ]; then
-          echo "1" > /logs/verifier/result.txt
-          echo "SUCCESS"
-        else
-          echo "0" > /logs/verifier/result.txt
-          echo "FAILED"
-          exit 1
-        fi
+        mkdir -p /logs/verifier && echo "$$?" > /logs/verifier/result.txt
       '
 
     # Resource limits
@@ -250,22 +226,11 @@ services:
 
     command: |
       bash -c '
-        # Install git
         apt-get update && apt-get install -y git
-
-        # Clone and merge
-        git clone --branch $$TARGET_BRANCH $$REPO_URL /workspace
-        cd /workspace
-        git fetch origin pull/$$PR_ID/head:pr-source
-        git checkout $$TARGET_COMMIT
-        git merge pr-source --no-edit
-
-        # Build
+        git clone --branch $$TARGET_BRANCH $$REPO_URL /workspace && cd /workspace
+        git fetch origin pull/$$PR_ID/head:pr-source && git checkout $$TARGET_COMMIT && git merge pr-source --no-edit
         $$BUILD_CMD
-
-        # Result
-        mkdir -p /logs/verifier
-        echo "$$?" > /logs/verifier/exit_code.txt
+        mkdir -p /logs/verifier && echo "$$?" > /logs/verifier/exit_code.txt
       '
 ```
 
@@ -290,11 +255,8 @@ services:
     command: |
       sh -c '
         apk add --no-cache git
-        git clone --branch $$TARGET_BRANCH $$REPO_URL /workspace
-        cd /workspace
-        git fetch origin pull/$$PR_ID/head:pr-source
-        git merge pr-source --no-edit
-        $$BUILD_CMD
+        git clone --branch $$TARGET_BRANCH $$REPO_URL /workspace && cd /workspace
+        git fetch origin pull/$$PR_ID/head:pr-source && git merge pr-source --no-edit && $$BUILD_CMD
       '
 ```
 
@@ -316,11 +278,8 @@ services:
     command: |
       bash -c '
         apt-get update && apt-get install -y git
-        git clone $$REPO_URL /workspace
-        cd /workspace
-        git fetch origin pull/$$PR_ID/head:pr-source
-        git merge pr-source --no-edit
-        $$BUILD_CMD
+        git clone $$REPO_URL /workspace && cd /workspace
+        git fetch origin pull/$$PR_ID/head:pr-source && git merge pr-source --no-edit && $$BUILD_CMD
       '
 ```
 
@@ -556,39 +515,14 @@ services:
 
     command: |
       bash -c '
-        echo "=== PR Verification: $REPO_NAME #$PR_NUMBER ==="
-
-        # Setup
+        echo "=== Verifying $REPO_NAME #$PR_NUMBER ==="
         {config["setup"]}
-        git config --global user.email "fixagent@verifier.local"
-        git config --global user.name "FixAgent Verifier"
-
-        # Clone
-        git clone --depth=1 --branch "$TARGET_BRANCH" "$REPO_URL" /workspace
-        cd /workspace
-
-        # Fetch and merge
-        git fetch --depth=50 origin "$TARGET_COMMIT"
-        git fetch origin "pull/$PR_NUMBER/head:pr-source"
-        git checkout "$TARGET_COMMIT"
-        git checkout -b mock-merge
-        git merge pr-source --no-commit --no-edit || echo "Merge conflicts"
-
-        # Build
-        echo "Running: $BUILD_COMMAND"
+        git config --global user.email "fixagent@verifier.local" && git config --global user.name "FixAgent Verifier"
+        git clone --depth=1 --branch "$TARGET_BRANCH" "$REPO_URL" /workspace && cd /workspace
+        git fetch --depth=50 origin "$TARGET_COMMIT" && git fetch origin "pull/$PR_NUMBER/head:pr-source"
+        git checkout "$TARGET_COMMIT" && git checkout -b mock-merge && git merge pr-source --no-commit --no-edit || true
         eval "$BUILD_COMMAND"
-        EXIT_CODE=$?
-
-        # Write result
-        mkdir -p /logs/verifier
-        if [ $EXIT_CODE -eq 0 ]; then
-          echo "1" > /logs/verifier/result.txt
-          echo "=== BUILD SUCCESS ==="
-        else
-          echo "0" > /logs/verifier/result.txt
-          echo "=== BUILD FAILED ==="
-          exit 1
-        fi
+        mkdir -p /logs/verifier && echo "$$?" > /logs/verifier/result.txt
       '
 
     cpus: 2

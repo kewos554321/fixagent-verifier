@@ -111,20 +111,14 @@ class DockerEnvironment(BaseEnvironment):
             raise RuntimeError("Container not started")
 
         # Clone target repository
-        clone_cmd = f"""
-        git clone --depth=1 --branch {pr_info.target_branch} \
-            {pr_info.target_repo_url} {self.working_dir}
-        """
-        result = await self.exec(clone_cmd.strip(), cwd="/")
+        clone_cmd = f"git clone --depth=1 --branch {pr_info.target_branch} {pr_info.target_repo_url} {self.working_dir}"
+        result = await self.exec(clone_cmd, cwd="/")
         if result.return_code != 0:
             raise RuntimeError(f"Failed to clone repository: {result.stderr}")
 
         # Fetch full history for target and source commits
-        fetch_cmd = f"""
-        git fetch --depth=50 origin {pr_info.target_commit} && \
-        git fetch origin pull/{pr_info.pr_number}/head:pr-source
-        """
-        result = await self.exec(fetch_cmd.strip())
+        fetch_cmd = f"git fetch --depth=50 origin {pr_info.target_commit} && git fetch origin pull/{pr_info.pr_number}/head:pr-source"
+        result = await self.exec(fetch_cmd)
         if result.return_code != 0:
             raise RuntimeError(f"Failed to fetch PR: {result.stderr}")
 

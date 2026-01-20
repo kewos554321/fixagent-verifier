@@ -33,16 +33,8 @@ def generate_compose(
     Example:
         fixagent-verifier generate-compose --pr-url https://github.com/owner/repo/pull/123
     """
-    console.print(
-        Panel.fit(
-            "[bold blue]FixAgent Verifier[/bold blue]\n"
-            "Docker Compose Task Generator",
-            border_style="blue",
-        )
-    )
-
-    console.print(f"\n[bold]Generating task from PR...[/bold]")
-    console.print(f"   PR URL: {pr_url}")
+    console.print("[bold blue]FixAgent Verifier[/bold blue] - Compose Task Generator\n")
+    console.print(f"[bold]Generating:[/bold] {pr_url}")
 
     # Convert project type string to enum
     project_type_enum = ProjectType(project_type) if project_type else None
@@ -53,20 +45,10 @@ def generate_compose(
             generator.generate_from_pr_url(pr_url, project_type_enum, github_token)
         )
 
-    console.print(f"\n[green]✓ Task generated successfully![/green]")
-    console.print(f"   Location: {task_dir}")
-    console.print(f"   Task name: {task_dir.name}")
-
-    # Show files created
-    console.print(f"\n[bold]Files created:[/bold]")
-    for file in task_dir.iterdir():
-        if file.is_file():
-            console.print(f"   - {file.name}")
-
-    # Show usage instructions
-    console.print(f"\n[bold]Next steps:[/bold]")
-    console.print(f"   1. Run: [cyan]fixagent-verifier run-compose --task {task_dir.name}[/cyan]")
-    console.print(f"   2. Or:  [cyan]cd {task_dir} && docker compose up[/cyan]")
+    console.print(f"\n[green]✓ Generated:[/green] {task_dir.name}")
+    files = [f.name for f in task_dir.iterdir() if f.is_file()]
+    console.print(f"   Files: {', '.join(files)}")
+    console.print(f"\n[bold]Run:[/bold] [cyan]fixagent-verifier run-compose --task {task_dir.name}[/cyan]")
 
 
 def run_compose(
@@ -106,23 +88,10 @@ def run_compose(
         exit_code_file = task_dir / "logs" / "verifier" / "exit_code.txt"
 
         if result_file.exists():
-            result_content = result_file.read_text().strip()
-            success = result_content == "1"
-
-            console.print("")
-            if success:
-                console.print("[green]✓ Verification PASSED[/green]")
-            else:
-                console.print("[red]✗ Verification FAILED[/red]")
-
-            # Show exit code
-            if exit_code_file.exists():
-                exit_code = exit_code_file.read_text().strip()
-                console.print(f"   Exit code: {exit_code}")
-
-            # Show result location
-            console.print(f"   Results: {task_dir}/logs/verifier/")
-
+            success = result_file.read_text().strip() == "1"
+            status = "[green]✓ PASSED[/green]" if success else "[red]✗ FAILED[/red]"
+            exit_code = exit_code_file.read_text().strip() if exit_code_file.exists() else "?"
+            console.print(f"\n{status} | Exit: {exit_code} | Logs: {task_dir}/logs/verifier/")
             if not success:
                 raise typer.Exit(1)
         else:
@@ -154,13 +123,7 @@ def run_all_compose(
     Example:
         fixagent-verifier run-all-compose --concurrent 4
     """
-    console.print(
-        Panel.fit(
-            "[bold blue]FixAgent Verifier[/bold blue]\n"
-            "Batch Docker Compose Execution",
-            border_style="blue",
-        )
-    )
+    console.print("[bold blue]FixAgent Verifier[/bold blue] - Batch Execution\n")
 
     # Find all tasks
     task_dirs = []
@@ -174,12 +137,10 @@ def run_all_compose(
             task_dirs.append(task_dir)
 
     if not task_dirs:
-        console.print("[yellow]No tasks found matching criteria[/yellow]")
+        console.print("[yellow]No tasks found[/yellow]")
         return
 
-    console.print(f"\n[bold]Found {len(task_dirs)} tasks to run[/bold]")
-    console.print(f"   Concurrency: {concurrent}")
-    console.print(f"   Pattern: {pattern}\n")
+    console.print(f"[bold]Running {len(task_dirs)} tasks[/bold] | Concurrency: {concurrent} | Pattern: {pattern}\n")
 
     # Run tasks in parallel
     results = {}
@@ -305,13 +266,8 @@ def _display_summary(results: dict[str, bool]):
     success = sum(1 for v in results.values() if v)
     failed = total - success
 
-    console.print(f"\n[bold]Summary:[/bold]")
-    console.print(f"   Total: {total}")
-    console.print(f"   [green]Success: {success}[/green]")
-    console.print(f"   [red]Failed: {failed}[/red]")
+    console.print(f"\n[bold]Summary:[/bold] {total} total | [green]{success} passed[/green] | [red]{failed} failed[/red]")
 
     if failed > 0:
-        console.print(f"\n[bold]Failed tasks:[/bold]")
-        for task_name, success in results.items():
-            if not success:
-                console.print(f"   - {task_name}")
+        failed_tasks = [name for name, ok in results.items() if not ok]
+        console.print(f"   Failed: {', '.join(failed_tasks)}")

@@ -48,13 +48,7 @@ def run_single(
     Example:
         fixagent-verifier run-single --pr-url https://github.com/owner/repo/pull/123
     """
-    console.print(
-        Panel.fit(
-            "[bold blue]FixAgent Verifier[/bold blue]\n"
-            "Automated PR Verification through Docker Isolation",
-            border_style="blue",
-        )
-    )
+    console.print("[bold blue]FixAgent Verifier[/bold blue] - PR Verification via Docker\n")
 
     asyncio.run(
         _run_single_async(
@@ -73,19 +67,14 @@ async def _run_single_async(
     timeout_sec: float,
 ):
     """Async implementation of run_single."""
-    console.print(f"\n[bold]1. Fetching PR information...[/bold]")
-    console.print(f"   PR URL: {pr_url}")
-
-    # Fetch PR info
+    console.print(f"[bold]1. Fetching PR info:[/bold] {pr_url}")
     github_client = GitHubClient(token=github_token)
     try:
         pr_info = await github_client.get_pr_info(pr_url)
-        console.print(f"   ✓ PR #{pr_info.pr_number}: {pr_info.title}")
-        console.print(f"   ✓ Repository: {pr_info.repo_owner}/{pr_info.repo_name}")
-        console.print(f"   ✓ Source: {pr_info.source_branch} @ {pr_info.source_commit[:7]}")
-        console.print(f"   ✓ Target: {pr_info.target_branch} @ {pr_info.target_commit[:7]}")
+        console.print(f"   ✓ #{pr_info.pr_number}: {pr_info.repo_owner}/{pr_info.repo_name}")
+        console.print(f"   ✓ {pr_info.source_branch}@{pr_info.source_commit[:7]} → {pr_info.target_branch}@{pr_info.target_commit[:7]}")
     except Exception as e:
-        console.print(f"   [red]✗ Failed to fetch PR info: {e}[/red]")
+        console.print(f"   [red]✗ Failed: {e}[/red]")
         raise typer.Exit(1)
 
     # Create task config
@@ -109,65 +98,31 @@ async def _run_single_async(
         output_dir=output_dir,
     )
 
-    console.print(f"\n[bold]2. Starting Docker environment...[/bold]")
-    console.print(f"   Image: fixagent-verifier:java-gradle")
-    console.print(f"   Resources: {cpus} CPUs, {memory_mb}MB RAM")
+    console.print(f"\n[bold]2. Docker:[/bold] {cpus}CPU/{memory_mb}MB | [bold]3. Merging PR[/bold] | [bold]4. Verifying ({project_type}, {timeout_sec}s)[/bold]")
 
-    console.print(f"\n[bold]3. Cloning and merging PR...[/bold]")
-
-    console.print(f"\n[bold]4. Running verification...[/bold]")
-    console.print(f"   Project type: {project_type}")
-    console.print(f"   Timeout: {timeout_sec}s")
-
-    # Run trial
-    with console.status("[bold green]Verifying PR..."):
+    with console.status("[bold green]Running verification..."):
         result = await run_trial(trial_config)
 
-    # Display results
-    console.print(f"\n[bold]5. Results[/bold]")
+    console.print(f"\n[bold]Results:[/bold]")
 
-    if result.success:
-        console.print(f"   [green]✓ Verification PASSED[/green]")
-    else:
-        console.print(f"   [red]✗ Verification FAILED[/red]")
-
-    # Create results table
-    table = Table(show_header=True, header_style="bold magenta")
-    table.add_column("Metric", style="cyan")
-    table.add_column("Value", style="yellow")
-
-    table.add_row("PR Number", f"#{result.pr_number}")
-    table.add_row("Success", "✓ Yes" if result.success else "✗ No")
+    status = "[green]✓ PASSED[/green]" if result.success else "[red]✗ FAILED[/red]"
+    console.print(f"   {status}")
 
     if result.verification_result:
-        table.add_row(
-            "Duration",
-            f"{result.verification_result.duration_sec:.1f}s",
-        )
-        table.add_row(
-            "Tasks Run", ", ".join(result.verification_result.tasks_run) or "N/A"
-        )
+        duration = result.verification_result.duration_sec
+        tasks = ", ".join(result.verification_result.tasks_run) or "N/A"
+        console.print(f"   Duration: {duration:.1f}s | Tasks: {tasks}")
 
-    if result.duration_sec:
-        table.add_row("Total Duration", f"{result.duration_sec:.1f}s")
+    console.print(f"   Logs: {result.trial_dir}")
 
-    table.add_row("Output Directory", str(result.trial_dir))
-
-    console.print(table)
-
-    # Show error if failed
     if result.exception_info:
-        console.print(f"\n[bold red]Exception:[/bold red]")
-        console.print(f"   {result.exception_info.exception_type}: "
-                     f"{result.exception_info.exception_message}")
+        console.print(f"\n[red]Error: {result.exception_info.exception_type} - {result.exception_info.exception_message}[/red]")
 
     if result.verification_result and not result.verification_result.success:
-        console.print(f"\n[bold yellow]Compilation Output (last 50 lines):[/bold yellow]")
+        console.print(f"\n[yellow]Last 30 lines:[/yellow]")
         lines = result.verification_result.compilation_output.split("\n")
-        for line in lines[-50:]:
+        for line in lines[-30:]:
             console.print(f"   {line}")
-
-    console.print(f"\n[bold]Full logs saved to:[/bold] {result.trial_dir}")
 
     if not result.success:
         raise typer.Exit(1)
