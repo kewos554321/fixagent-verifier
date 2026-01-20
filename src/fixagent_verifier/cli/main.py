@@ -13,12 +13,19 @@ from fixagent_verifier.github.client import GitHubClient
 from fixagent_verifier.models.task import TaskConfig
 from fixagent_verifier.models.trial import EnvironmentConfig, TrialConfig, VerifierConfig
 from fixagent_verifier.utils.trial import run_trial
+from fixagent_verifier.cli import compose_commands
 
 app = typer.Typer(
     name="fixagent-verifier",
     help="CLI tool for automated PR verification through isolated Docker environments",
 )
 console = Console()
+
+# Add compose commands
+app.command(name="generate-compose")(compose_commands.generate_compose)
+app.command(name="run-compose")(compose_commands.run_compose)
+app.command(name="run-all-compose")(compose_commands.run_all_compose)
+app.command(name="list-compose")(compose_commands.list_compose_tasks)
 
 
 @app.command()

@@ -24,6 +24,7 @@ dev = [
 
 [project.scripts]
 fixagent-verifier = "fixagent_verifier.cli.main:app"
+fv = "fixagent_verifier.cli.main:app"
 
 [build-system]
 requires = ["hatchling"]

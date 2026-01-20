@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  verifier:
+    image: eclipse-temurin:17-jdk-jammy
+    container_name: pr_springboot-aws-k8s_1
+
+    environment:
+      # PR Information
+      - PR_NUMBER=1
+      - REPO_URL=https://github.com/kewos554321/springboot-aws-k8s.git
+      - REPO_NAME=springboot-aws-k8s
+      - REPO_OWNER=kewos554321
+      - TARGET_BRANCH=main
+      - TARGET_COMMIT=c6b497d4ca5108a257732a54a68f423847ace2e4
+      - SOURCE_BRANCH=kewos554321-patch-1
+      - SOURCE_COMMIT=465866d53fb7a1776993c47081304eb05fc1fd3a
+
+      # Project Configuration
+      - PROJECT_TYPE=java-gradle
+      - BUILD_COMMAND=./gradlew clean build -x test --no-daemon --stacktrace
+      - TEST_COMMAND=./gradlew test --no-daemon
+
+    volumes:
+      - ./logs:/logs
+
+    working_dir: /workspace
+
+    command: |
+      bash -c '
+        set -e
+        echo "=========================================="
+        echo "PR Verification: $REPO_NAME #$PR_NUMBER"
+        echo "Project Type: $PROJECT_TYPE"
+        echo "=========================================="
+        echo ""
+
+        # Setup
+        echo "==> Setting up environment..."
+        apt-get update && apt-get install -y git curl
+        git config --global user.email "fixagent@verifier.local"
+        git config --global user.name "FixAgent Verifier"
+
+        # Clone repository
+        echo "==> Cloning repository..."
+        git clone --depth=1 --branch "$TARGET_BRANCH" "$REPO_URL" /workspace
+        cd /workspace
+
+        # Fetch PR and commits
+        echo "==> Fetching PR #$PR_NUMBER..."
+        git fetch --depth=50 origin "$TARGET_COMMIT"
+        git fetch origin "pull/$PR_NUMBER/head:pr-source"
+
+        # Checkout target commit
+        echo "==> Checking out target commit: $TARGET_COMMIT"
+        git checkout "$TARGET_COMMIT"
+
+        # Create merge branch
+        echo "==> Creating mock merge branch..."
+        git checkout -b mock-merge
+
+        # Merge PR
+        echo "==> Merging PR source branch..."
+        git merge pr-source --no-commit --no-edit || {
+          echo "WARNING: Merge conflicts detected, continuing anyway..."
+        }
+
+        # Run build
+        echo ""
+        echo "==> Running build command..."
+        echo "Command: $BUILD_COMMAND"
+        echo ""
+
+        eval "$BUILD_COMMAND"
+        BUILD_EXIT_CODE=$?
+
+        # Write result
+        mkdir -p /logs/verifier
+        echo "$BUILD_EXIT_CODE" > /logs/verifier/exit_code.txt
+        date -Iseconds > /logs/verifier/timestamp.txt
+
+        if [ $BUILD_EXIT_CODE -eq 0 ]; then
+          echo "1" > /logs/verifier/result.txt
+          echo ""
+          echo "=========================================="
+          echo "✓ BUILD SUCCESSFUL"
+          echo "=========================================="
+          exit 0
+        else
+          echo "0" > /logs/verifier/result.txt
+          echo ""
+          echo "=========================================="
+          echo "✗ BUILD FAILED (exit code: $BUILD_EXIT_CODE)"
+          echo "=========================================="
+          exit 1
+        fi
+      '
+
+    # Resource limits
+    cpus: 2
+    mem_limit: 4g
+
+    networks:
+      - pr-verification
+
+networks:
+  pr-verification:
+    driver: bridge
